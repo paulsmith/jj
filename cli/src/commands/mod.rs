@@ -53,6 +53,7 @@ mod split;
 mod squash;
 mod status;
 mod tag;
+mod undo;
 mod unsign;
 mod util;
 mod version;
@@ -202,7 +203,7 @@ pub fn run_command(ui: &mut Ui, command_helper: &CommandHelper) -> Result<(), Co
         Command::Squash(args) => squash::cmd_squash(ui, command_helper, args),
         Command::Status(args) => status::cmd_status(ui, command_helper, args),
         Command::Tag(args) => tag::cmd_tag(ui, command_helper, args),
-        Command::Undo(args) => operation::undo::cmd_op_undo(ui, command_helper, args),
+        Command::Undo(args) => undo::cmd_undo(ui, command_helper, args),
         Command::Unsign(args) => unsign::cmd_unsign(ui, command_helper, args),
         Command::Util(args) => util::cmd_util(ui, command_helper, args),
         Command::Version(args) => version::cmd_version(ui, command_helper, args),

@@ -38,7 +38,7 @@ pub struct OperationUndoArgs {
     ///
     /// Use `jj op log` to find an operation to undo.
     #[arg(default_value = "@", add = ArgValueCandidates::new(complete::operations))]
-    operation: String,
+    pub(crate) operation: String, // pub for `jj undo`
 
     /// What portions of the local state to restore (can be repeated)
     ///
@@ -60,7 +60,7 @@ fn resets_view_of(op: &Operation, parent_op: &Operation) -> Result<bool, OpStore
     Ok(op.view_id() == grandparent_op?.view_id())
 }
 
-fn tx_description(op: &Operation) -> String {
+pub(crate) fn tx_description(op: &Operation) -> String {
     format!("undo operation {}", op.id().hex())
 }
 
