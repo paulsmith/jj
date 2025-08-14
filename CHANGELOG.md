@@ -16,6 +16,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and new formats, so old `jj` versions should be able to read these index
   files. This compatibility layer will be removed in a future release.
 
+* `jj op undo` is deprecated in favor of `jj op revert`.
+
 ### New features
 
 * `jj file show` now accepts `-T`/`--template` option to insert file metadata.

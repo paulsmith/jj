@@ -142,8 +142,8 @@ enum Command {
     Status(status::StatusArgs),
     #[command(subcommand)]
     Tag(tag::TagCommand),
-    /// Undo an operation (shortcut for `jj op undo`)
-    Undo(operation::undo::OperationUndoArgs),
+    /// Undo an operation
+    Undo(operation::revert::OperationRevertArgs),
     Unsign(unsign::UnsignArgs),
     #[command(subcommand)]
     Util(util::UtilCommand),
@@ -208,6 +208,25 @@ pub fn run_command(ui: &mut Ui, command_helper: &CommandHelper) -> Result<(), Co
         Command::Util(args) => util::cmd_util(ui, command_helper, args),
         Command::Version(args) => version::cmd_version(ui, command_helper, args),
         Command::Workspace(args) => workspace::cmd_workspace(ui, command_helper, args),
+    }
+}
+
+/// Wraps deprecated command of `old_name` which has been renamed to `new_name`.
+pub(crate) fn renamed_cmd<Args>(
+    old_name: &'static str,
+    new_name: &'static str,
+    cmd: impl Fn(&mut Ui, &CommandHelper, &Args) -> Result<(), CommandError>,
+) -> impl Fn(&mut Ui, &CommandHelper, &Args) -> Result<(), CommandError> {
+    move |ui: &mut Ui, command: &CommandHelper, args: &Args| -> Result<(), CommandError> {
+        writeln!(
+            ui.warning_default(),
+            "`jj {old_name}` is deprecated; use `jj {new_name}` instead, which is equivalent"
+        )?;
+        writeln!(
+            ui.warning_default(),
+            "`jj {old_name}` will be removed in a future version, and this will be a hard error"
+        )?;
+        cmd(ui, command, args)
     }
 }
 
