@@ -43,6 +43,10 @@ pub struct BookmarkRenameArgs {
     /// The new name of the bookmark
     #[arg(value_parser = revset_util::parse_bookmark_name)]
     new: RefNameBuf,
+
+    /// Allow renaming a protected bookmark
+    #[arg(long)]
+    allow_protected: bool,
 }
 
 pub fn cmd_bookmark_rename(
@@ -61,6 +65,14 @@ pub fn cmd_bookmark_rename(
         )));
     }
 
+    // Check if the bookmark being renamed from is protected
+    crate::cli_util::check_bookmark_protection(
+        ui,
+        workspace_command.settings(),
+        args.old.as_str(),
+        args.allow_protected,
+    )?;
+
     let new_bookmark = &args.new;
     if view.get_local_bookmark(new_bookmark).is_present() {
         return Err(user_error(format!(
@@ -68,6 +80,14 @@ pub fn cmd_bookmark_rename(
             new_bookmark = new_bookmark.as_symbol()
         )));
     }
+
+    // Check if the destination name is protected
+    crate::cli_util::check_bookmark_protection(
+        ui,
+        workspace_command.settings(),
+        args.new.as_str(),
+        args.allow_protected,
+    )?;
 
     let mut tx = workspace_command.start_transaction();
     tx.repo_mut()

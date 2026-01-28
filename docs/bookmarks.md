@@ -230,5 +230,32 @@ command itself through an alias (as `jj b`), and for its subcommands.
 For example, `jj bookmark create BOOKMARK-NAME -r@` can be abbreviated as
 `jj b c BOOKMARK-NAME -r@`.
 
+## Protected Bookmarks
+
+You can protect important bookmarks from accidental modification:
+
+```toml
+[bookmarks]
+# Glob patterns for protected bookmarks
+protected = ["main", "release-*"]
+
+# Optional: commits that protected bookmarks can point to
+protected-revset = "~conflicts()"
+```
+
+Protected bookmarks require `--allow-protected` to modify:
+
+```shell
+$ jj bookmark set main -r @
+Error: Bookmark "main" is protected
+Hint: Use --allow-protected to override protection.
+
+$ jj bookmark set main -r @ --allow-protected
+# Success (if target matches protected-revset)
+```
+
+The `protected-revset` provides additional validation even when
+`--allow-protected` is used.
+
 [colocated-workspaces]: git-compatibility.md#colocated-jujutsugit-repos
 [design]: design/tracking-branches.md

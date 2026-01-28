@@ -72,6 +72,10 @@ pub struct BookmarkMoveArgs {
     /// Allow moving bookmarks backwards or sideways
     #[arg(long, short = 'B')]
     allow_backwards: bool,
+
+    /// Allow moving a protected bookmark
+    #[arg(long)]
+    allow_protected: bool,
 }
 
 pub fn cmd_bookmark_move(
@@ -115,6 +119,28 @@ pub fn cmd_bookmark_move(
     if matched_bookmarks.is_empty() {
         writeln!(ui.status(), "No bookmarks to update.")?;
         return Ok(());
+    }
+
+    // Check protection for all matched bookmarks
+    for (name, _) in &matched_bookmarks {
+        crate::cli_util::check_bookmark_protection(
+            ui,
+            workspace_command.settings(),
+            name.as_str(),
+            args.allow_protected,
+        )?;
+    }
+
+    // If --allow-protected was used, still validate against protected-revset
+    if args.allow_protected {
+        for (name, _) in &matched_bookmarks {
+            crate::cli_util::check_protected_revset(
+                ui,
+                &workspace_command,
+                name.as_str(),
+                &target_commit,
+            )?;
+        }
     }
 
     if !args.allow_backwards

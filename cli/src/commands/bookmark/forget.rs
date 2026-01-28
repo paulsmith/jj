@@ -56,6 +56,10 @@ pub struct BookmarkForgetArgs {
     #[arg(required = true)]
     #[arg(add = ArgValueCandidates::new(complete::bookmarks))]
     names: Vec<String>,
+
+    /// Allow forgetting a protected bookmark
+    #[arg(long)]
+    allow_protected: bool,
 }
 
 pub fn cmd_bookmark_forget(
@@ -70,6 +74,15 @@ pub fn cmd_bookmark_forget(
     if matched_bookmarks.is_empty() {
         writeln!(ui.status(), "No bookmarks to forget.")?;
         return Ok(());
+    }
+
+    for (name, _) in &matched_bookmarks {
+        crate::cli_util::check_bookmark_protection(
+            ui,
+            workspace_command.settings(),
+            name.as_str(),
+            args.allow_protected,
+        )?;
     }
 
     let mut tx = workspace_command.start_transaction();

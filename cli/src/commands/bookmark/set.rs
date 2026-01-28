@@ -52,6 +52,10 @@ pub struct BookmarkSetArgs {
     #[arg(long, short = 'B')]
     allow_backwards: bool,
 
+    /// Allow modifying a protected bookmark
+    #[arg(long)]
+    allow_protected: bool,
+
     /// The bookmarks to update
     #[arg(required = true, value_parser = revset_util::parse_bookmark_name)]
     #[arg(add = ArgValueCandidates::new(complete::local_bookmarks))]
@@ -64,7 +68,30 @@ pub fn cmd_bookmark_set(
     args: &BookmarkSetArgs,
 ) -> Result<(), CommandError> {
     let mut workspace_command = command.workspace_helper(ui)?;
+
+    // Check protection for all bookmarks being set
+    for name in &args.names {
+        crate::cli_util::check_bookmark_protection(
+            ui,
+            workspace_command.settings(),
+            name.as_str(),
+            args.allow_protected,
+        )?;
+    }
+
     let target_commit = workspace_command.resolve_single_rev(ui, &args.revision)?;
+
+    // If --allow-protected was used, still validate against protected-revset
+    if args.allow_protected {
+        for name in &args.names {
+            crate::cli_util::check_protected_revset(
+                ui,
+                &workspace_command,
+                name.as_str(),
+                &target_commit,
+            )?;
+        }
+    }
     let repo = workspace_command.repo().as_ref();
     let bookmark_names = &args.names;
     let mut new_bookmarks = HashSet::new();

@@ -2893,6 +2893,504 @@ fn test_bad_auto_track_bookmarks() {
     ");
 }
 
+#[test]
+fn test_protected_bookmark_blocks_set() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    // Configure protection
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    // Create initial commit and bookmark (using --allow-protected to create it)
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+    work_dir.run_jj(["new"]).success();
+
+    // Should fail without flag
+    let output = work_dir.run_jj(["bookmark", "set", "main", "-r", "@"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "main" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: main
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_bookmark_allows_with_flag() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    // Configure protection
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    // Create initial commit and bookmark (using --allow-protected to create it)
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+    work_dir.run_jj(["new"]).success();
+
+    // Should succeed with flag
+    let output = work_dir.run_jj(["bookmark", "set", "main", "-r", "@", "--allow-protected"]);
+    output.success();
+}
+
+#[test]
+fn test_unprotected_bookmark_works_normally() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    // Configure protection for main only
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    // Create initial commit and feature bookmark
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir.run_jj(["bookmark", "create", "feature"]).success();
+    work_dir.run_jj(["new"]).success();
+
+    // Should succeed without flag for unprotected bookmark
+    let output = work_dir.run_jj(["bookmark", "set", "feature", "-r", "@"]);
+    output.success();
+}
+
+#[test]
+fn test_protected_bookmark_blocks_delete() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    // Configure protection
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    // Create initial commit and bookmark (using --allow-protected to create it)
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+
+    // Should fail without flag
+    let output = work_dir.run_jj(["bookmark", "delete", "main"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "main" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: main
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_bookmark_blocks_rename() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    // Configure protection
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    // Create initial commit and bookmark (using --allow-protected to create it)
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+
+    // Should fail without flag
+    let output = work_dir.run_jj(["bookmark", "rename", "main", "trunk"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "main" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: main
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_bookmark_blocks_rename_into() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    // Configure protection
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir.run_jj(["bookmark", "create", "feature"]).success();
+
+    let output = work_dir.run_jj(["bookmark", "rename", "feature", "main"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "main" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: main
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_bookmark_blocks_move() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+    work_dir.run_jj(["new"]).success();
+
+    let output = work_dir.run_jj(["bookmark", "move", "main", "--to", "@"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "main" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: main
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_bookmark_blocks_forget() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    // Configure protection
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    // Create initial commit and bookmark (using --allow-protected to create it)
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+
+    // Should fail without flag
+    let output = work_dir.run_jj(["bookmark", "forget", "main"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "main" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: main
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_bookmark_blocks_create() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+"#,
+    );
+
+    work_dir.run_jj(["new", "root()"]).success();
+
+    let output = work_dir.run_jj(["bookmark", "create", "main"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "main" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: main
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_revset_blocks_conflicted_commit() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+protected-revset = "~conflicts()"
+"#,
+    );
+
+    // Create main bookmark
+    work_dir.run_jj(["new", "root()"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "base").unwrap();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+
+    // Create conflicting branches
+    work_dir.run_jj(["new", "main"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "left").unwrap();
+    work_dir.run_jj(["bookmark", "create", "left"]).success();
+
+    work_dir.run_jj(["new", "main"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "right").unwrap();
+    work_dir.run_jj(["bookmark", "create", "right"]).success();
+
+    // Merge to create conflict
+    work_dir.run_jj(["new", "left", "right"]).success();
+
+    // Should fail even with --allow-protected
+    let output = work_dir.run_jj(["bookmark", "set", "main", "-r", "@", "--allow-protected"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Commit does not match protected-revset "~conflicts()"
+    Hint: Protected bookmark "main" can only point to commits matching this revset.
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_revset_blocks_create_on_conflict() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+protected-revset = "~conflicts()"
+"#,
+    );
+
+    // Create conflicting branches
+    work_dir.run_jj(["new", "root()"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "left").unwrap();
+    work_dir.run_jj(["bookmark", "create", "left"]).success();
+
+    work_dir.run_jj(["new", "root()"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "right").unwrap();
+    work_dir.run_jj(["bookmark", "create", "right"]).success();
+
+    // Merge to create conflict
+    work_dir.run_jj(["new", "left", "right"]).success();
+
+    // Create should fail even with --allow-protected
+    let output = work_dir.run_jj(["bookmark", "create", "main", "-r", "@", "--allow-protected"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Commit does not match protected-revset "~conflicts()"
+    Hint: Protected bookmark "main" can only point to commits matching this revset.
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_revset_blocks_move_to_conflict() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+protected-revset = "~conflicts()"
+"#,
+    );
+
+    // Create main bookmark on a non-conflicting commit
+    work_dir.run_jj(["new", "root()"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "base").unwrap();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+
+    // Create conflicting branches
+    work_dir.run_jj(["new", "main"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "left").unwrap();
+    work_dir.run_jj(["bookmark", "create", "left"]).success();
+
+    work_dir.run_jj(["new", "main"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "right").unwrap();
+    work_dir.run_jj(["bookmark", "create", "right"]).success();
+
+    // Merge to create conflict
+    work_dir.run_jj(["new", "left", "right"]).success();
+
+    // Move should fail even with --allow-protected
+    let output = work_dir.run_jj(["bookmark", "move", "main", "--to", "@", "--allow-protected"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Commit does not match protected-revset "~conflicts()"
+    Hint: Protected bookmark "main" can only point to commits matching this revset.
+    [EOF]
+    [exit status: 1]
+    "#);
+}
+
+#[test]
+fn test_protected_revset_allows_matching_commit() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["main"]
+protected-revset = "~conflicts()"
+"#,
+    );
+
+    // Create initial commit
+    work_dir.run_jj(["new", "root()"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "base").unwrap();
+    work_dir
+        .run_jj(["bookmark", "create", "main", "--allow-protected"])
+        .success();
+
+    // Create another non-conflicting commit
+    work_dir.run_jj(["new", "main"]).success();
+    std::fs::write(work_dir.root().join("file.txt"), "updated").unwrap();
+
+    // Set should succeed with --allow-protected when target is non-conflicting
+    let output = work_dir.run_jj(["bookmark", "set", "main", "-r", "@", "--allow-protected"]);
+    output.success();
+}
+
+#[test]
+fn test_protected_bookmark_glob_pattern() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    test_env.add_config(
+        r#"
+[bookmarks]
+protected = ["release-*"]
+"#,
+    );
+
+    work_dir.run_jj(["new", "root()"]).success();
+    work_dir
+        .run_jj(["bookmark", "create", "release-1.0", "--allow-protected"])
+        .success();
+    work_dir.run_jj(["new"]).success();
+
+    // Should block release-1.0
+    let output = work_dir.run_jj(["bookmark", "set", "release-1.0", "-r", "@"]);
+    insta::assert_snapshot!(output, @r#"
+    ------- stderr -------
+    Error: Bookmark "release-1.0" is protected
+    Hint: Use --allow-protected to override protection.
+    Protected bookmarks: release-*
+    [EOF]
+    [exit status: 1]
+    "#);
+
+    // Should allow feature-1.0
+    work_dir.run_jj(["bookmark", "create", "feature-1.0"]).success();
+    work_dir.run_jj(["new"]).success();
+    work_dir.run_jj(["bookmark", "set", "feature-1.0", "-r", "@"]).success();
+}
+
+#[test]
+fn test_protected_bookmark_config_type_error() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    work_dir.run_jj(["new", "root()"]).success();
+
+    let output = work_dir.run_jj([
+        "bookmark",
+        "create",
+        "feature",
+        "--config=bookmarks.protected='main'",
+    ]);
+    assert!(!output.status.success());
+    assert!(output
+        .stderr
+        .raw()
+        .contains("Config error: Invalid type or value for bookmarks.protected"));
+}
+
+#[test]
+fn test_protected_revset_config_type_error() {
+    let test_env = TestEnvironment::default();
+    test_env.run_jj_in(".", ["git", "init", "repo"]).success();
+    let work_dir = test_env.work_dir("repo");
+
+    work_dir.run_jj(["new", "root()"]).success();
+
+    let output = work_dir.run_jj([
+        "bookmark",
+        "create",
+        "main",
+        "--allow-protected",
+        "--config=bookmarks.protected=['main']",
+        "--config=bookmarks.protected-revset=['not-a-string']",
+    ]);
+    assert!(!output.status.success());
+    assert!(output
+        .stderr
+        .raw()
+        .contains("Config error: Invalid type or value for bookmarks.protected-revset"));
+}
+
 #[must_use]
 fn get_log_output(work_dir: &TestWorkDir) -> CommandOutput {
     let template = r#"bookmarks ++ " " ++ commit_id.short()"#;

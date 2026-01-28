@@ -701,6 +701,23 @@
                 }
             }
         },
+        "bookmarks": {
+            "type": "object",
+            "description": "Settings for bookmark protection",
+            "properties": {
+                "protected": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Glob patterns for protected bookmark names"
+                },
+                "protected-revset": {
+                    "type": "string",
+                    "description": "Revset that protected bookmarks must point to"
+                }
+            }
+        },
         "snapshot": {
             "type": "object",
             "description": "Parameters governing automatic capture of files into the working copy commit",

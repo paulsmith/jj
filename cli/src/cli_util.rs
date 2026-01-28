@@ -796,6 +796,103 @@ fn load_advance_bookmarks_matcher(
     }
 }
 
+/// Load the matcher for protected bookmark patterns from config.
+/// Returns None if no patterns are configured.
+pub fn load_protected_bookmarks_matcher(
+    ui: &Ui,
+    settings: &UserSettings,
+) -> Result<Option<StringMatcher>, CommandError> {
+    let name = ConfigNamePathBuf::from_iter(["bookmarks", "protected"]);
+    let patterns: Vec<String> = settings.get(&name).optional()?.unwrap_or_default();
+    if patterns.is_empty() {
+        return Ok(None);
+    }
+    let expr = parse_union_name_patterns(ui, &patterns)?;
+    Ok(Some(expr.to_matcher()))
+}
+
+/// Check if a bookmark is protected and return an error if so.
+/// If `allow_protected` is true, skips the check.
+pub fn check_bookmark_protection(
+    ui: &Ui,
+    settings: &UserSettings,
+    bookmark_name: &str,
+    allow_protected: bool,
+) -> Result<(), CommandError> {
+    let Some(matcher) = load_protected_bookmarks_matcher(ui, settings)? else {
+        return Ok(());
+    };
+    if allow_protected {
+        return Ok(());
+    }
+    if matcher.is_match(bookmark_name) {
+        let name = ConfigNamePathBuf::from_iter(["bookmarks", "protected"]);
+        let patterns: Vec<String> = settings.get(&name).optional()?.unwrap_or_default();
+        return Err(user_error(format!(
+            "Bookmark \"{bookmark_name}\" is protected"
+        ))
+        .hinted(format!(
+            "Use --allow-protected to override protection.\n\
+             Protected bookmarks: {}",
+            patterns.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// Check if a target commit matches the protected-revset constraint.
+/// Should be called when --allow-protected is used and the bookmark matches
+/// protected patterns, to provide defense-in-depth validation.
+pub fn check_protected_revset(
+    ui: &Ui,
+    workspace_command: &WorkspaceCommandHelper,
+    bookmark_name: &str,
+    target_commit: &jj_lib::commit::Commit,
+) -> Result<(), CommandError> {
+    let settings = workspace_command.settings();
+
+    // Only check if bookmark matches protected pattern
+    let Some(matcher) = load_protected_bookmarks_matcher(ui, settings)? else {
+        return Ok(());
+    };
+    if !matcher.is_match(bookmark_name) {
+        return Ok(());
+    }
+
+    // Check if protected-revset is configured
+    let revset_name = ConfigNamePathBuf::from_iter(["bookmarks", "protected-revset"]);
+    let Some(revset_str) = settings.get::<String>(&revset_name).optional()? else {
+        return Ok(());
+    };
+
+    // Parse and evaluate the revset
+    let mut diagnostics = RevsetDiagnostics::new();
+    let context = workspace_command.env().revset_parse_context();
+    let expression = revset::parse(&mut diagnostics, &revset_str, &context)
+        .map_err(|e| config_error_with_message("Invalid `bookmarks.protected-revset`", e))?;
+    print_parse_diagnostics(ui, "In `bookmarks.protected-revset`", &diagnostics)?;
+
+    let evaluator = workspace_command.attach_revset_evaluator(expression);
+    let revset = evaluator.evaluate().map_err(|e| {
+        user_error_with_message(
+            format!("Failed to evaluate `bookmarks.protected-revset` \"{revset_str}\""),
+            e,
+        )
+    })?;
+
+    // Check if target commit is in the revset
+    if !revset.containing_fn()(&target_commit.id().clone())? {
+        return Err(user_error(format!(
+            "Commit does not match protected-revset \"{revset_str}\""
+        ))
+        .hinted(format!(
+            "Protected bookmark \"{bookmark_name}\" can only point to commits matching this revset."
+        )));
+    }
+
+    Ok(())
+}
+
 /// Metadata and configuration loaded for a specific workspace.
 pub struct WorkspaceCommandEnvironment {
     command: CommandHelper,

@@ -45,6 +45,10 @@ pub struct BookmarkDeleteArgs {
     #[arg(required = true)]
     #[arg(add = ArgValueCandidates::new(complete::local_bookmarks))]
     names: Vec<String>,
+
+    /// Allow deleting a protected bookmark
+    #[arg(long)]
+    allow_protected: bool,
 }
 
 pub fn cmd_bookmark_delete(
@@ -64,6 +68,15 @@ pub fn cmd_bookmark_delete(
     if matched_bookmarks.is_empty() {
         writeln!(ui.status(), "No bookmarks to delete.")?;
         return Ok(());
+    }
+
+    for (name, _) in &matched_bookmarks {
+        crate::cli_util::check_bookmark_protection(
+            ui,
+            workspace_command.settings(),
+            name.as_str(),
+            args.allow_protected,
+        )?;
     }
 
     let mut tx = workspace_command.start_transaction();

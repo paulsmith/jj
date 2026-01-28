@@ -41,6 +41,10 @@ pub struct BookmarkCreateArgs {
     #[arg(add = ArgValueCompleter::new(complete::revset_expression_all))]
     revision: RevisionArg,
 
+    /// Allow creating a protected bookmark
+    #[arg(long)]
+    allow_protected: bool,
+
     /// The bookmarks to create
     #[arg(required = true, value_parser = revset_util::parse_bookmark_name)]
     names: Vec<RefNameBuf>,
@@ -52,7 +56,30 @@ pub fn cmd_bookmark_create(
     args: &BookmarkCreateArgs,
 ) -> Result<(), CommandError> {
     let mut workspace_command = command.workspace_helper(ui)?;
+
+    // Check protection for all bookmarks being created
+    for name in &args.names {
+        crate::cli_util::check_bookmark_protection(
+            ui,
+            workspace_command.settings(),
+            name.as_str(),
+            args.allow_protected,
+        )?;
+    }
+
     let target_commit = workspace_command.resolve_single_rev(ui, &args.revision)?;
+
+    // If --allow-protected was used, still validate against protected-revset
+    if args.allow_protected {
+        for name in &args.names {
+            crate::cli_util::check_protected_revset(
+                ui,
+                &workspace_command,
+                name.as_str(),
+                &target_commit,
+            )?;
+        }
+    }
     let repo = workspace_command.repo().as_ref();
     let view = repo.view();
     let bookmark_names = &args.names;
